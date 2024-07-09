@@ -1,0 +1,6 @@
+Flask
+openai
+python-dotenv
+pydub
+sounddevice
+scipy
