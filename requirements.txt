@@ -5,3 +5,4 @@ pydub
 sounddevice
 scipy
 streamlit
+soundfile

@@ -5,9 +5,7 @@ from dotenv import load_dotenv
 import io
 import time
 import sounddevice as sd
-from scipy.io.wavfile import write
-from pydub import AudioSegment
-from pydub.playback import play
+import soundfile as sf
 
 # .envファイルからAPIキーとアシスタントIDを読み込む
 load_dotenv()
@@ -69,7 +67,7 @@ class AIAssistant:
         Returns:
             str: 変換されたテキスト。
         """
-        write(self.output_audio_file, self.fs, audio_data)
+        sf.write(self.output_audio_file, audio_data, self.fs)
         with open(self.output_audio_file, "rb") as audio_file:
             transcript = self.client.audio.transcriptions.create(
                 model=self.stt_model, file=audio_file
@@ -128,10 +126,10 @@ class AIAssistant:
         )
 
         byte_stream = io.BytesIO(response.content)
+        audio_data, samplerate = sf.read(byte_stream)
 
-        audio = AudioSegment.from_file(byte_stream, format="mp3")
-
-        play(audio)
+        sd.play(audio_data, samplerate)
+        sd.wait()
 
 def main():
     ai_assistant = AIAssistant(assistant_id=assistant_id, api_key=api_key)
