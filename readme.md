@@ -16,3 +16,5 @@ OpenAI の AssitantsAPI（RAG）を使った面談シミュレータ PoC
 # 実行手順
 
 TBU
+
+streamlit run streamlit_app.py

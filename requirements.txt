@@ -4,3 +4,4 @@ python-dotenv
 pydub
 sounddevice
 scipy
+streamlit

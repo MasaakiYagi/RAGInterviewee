@@ -1,4 +1,5 @@
 import os
+import streamlit as st
 from openai import OpenAI
 from dotenv import load_dotenv
 import io
@@ -13,16 +14,10 @@ load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
 assistant_id = os.getenv('ASSISTANT_ID')
 
-# # クライアント設定
-# client = OpenAI()
-# client.api_key = api_key
-
-# STT, Assistants, TTSのパイプラインクラス
 class AIAssistant:
     """
     OpenAIのAPIを利用して音声をテキストに変換し、AIアシスタントで処理し、音声に戻すクラス。
     """
-
     # 録音パラメータ
     fs = 44100  # サンプリングレート
     duration = 5  # 録音する秒数
@@ -56,12 +51,12 @@ class AIAssistant:
         Returns:
             any: 録音データ。
         """
-        print("Start recording...")
+        st.write("Start recording...")
         recorded_data = sd.rec(
             int(self.duration * self.fs), samplerate=self.fs, channels=self.channels
         )
         sd.wait()  # 録音が終わるまで待機
-        print("...Finished recording")
+        st.write("...Finished recording")
         return recorded_data
 
     def transcribe_audio(self, audio_data: any) -> str:
@@ -141,17 +136,17 @@ class AIAssistant:
 def main():
     ai_assistant = AIAssistant(assistant_id=assistant_id, api_key=api_key)
 
-    while True:
+    st.title("AI Assistant with Speech-to-Text and Text-to-Speech")
+
+    if st.button("Record Audio"):
         recorded_data = ai_assistant.record_audio()
         transcript_text = ai_assistant.transcribe_audio(recorded_data)
-        print(f"user: {transcript_text}")
+        st.write(f"user: {transcript_text}")
 
-        if not transcript_text:
-            break
-
-        assistant_content = ai_assistant.run_thread_actions(transcript_text)
-        print(f"assistant: {assistant_content}")
-        ai_assistant.text_to_speech(assistant_content)
+        if transcript_text:
+            assistant_content = ai_assistant.run_thread_actions(transcript_text)
+            st.write(f"assistant: {assistant_content}")
+            ai_assistant.text_to_speech(assistant_content)
 
 if __name__ == "__main__":
     main()
