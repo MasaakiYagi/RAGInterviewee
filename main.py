@@ -139,7 +139,7 @@ class AIAssistant:
         play(audio)
 
 def main():
-    ai_assistant = AIAssistant(assistant_id=assistant_id)
+    ai_assistant = AIAssistant(assistant_id=assistant_id, api_key=api_key)
 
     while True:
         recorded_data = ai_assistant.record_audio()
@@ -153,3 +153,5 @@ def main():
         print(f"assistant: {assistant_content}")
         ai_assistant.text_to_speech(assistant_content)
 
+if __name__ == "__main__":
+    main()
