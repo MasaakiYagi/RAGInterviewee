@@ -1,0 +1,68 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    max-width: 800px;
+}
+
+#status-container {
+    background-color: #f0f0f0;
+    padding: 3px;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+#status-container p {
+    margin: 0;
+}
+
+.image-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.character-image {
+    width: 400px; /* ここで画像の幅を指定 */
+    height: auto; /* 高さは自動調整 */
+}
+
+.scrollable-container {
+    flex: 1; /* ここで高さを可変にする */
+    overflow-y: scroll;
+    border: 1px solid #ccc;
+    padding: 10px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.button-container {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 10px;
+    font-size: 16px;
+}
+
+.disabled-button {
+    background-color: #ccc;
+    cursor: not-allowed;
+}

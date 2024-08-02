@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>面談シミュレータ Powered by ChatGPT</h1>
+        <div id="status-container">
+            <p>Status: <span id="status">{{ status }}</span></p>
+        </div>
+        
+        <!-- 画像を表示するためのdivを追加 -->
+        <div class="image-container">
+            <img src="{{ url_for('static', filename='images/character.png') }}" alt="Character Image" class="character-image">
+        </div>
+
+        <div class="scrollable-container" id="conversation"></div>
+        <div class="button-container">
+            <button id="start-button" class="control-button">Start Interaction</button>
+            <button id="pause-button" class="control-button">Pause Interaction</button>
+            <button id="end-button" class="control-button">End Interaction</button>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+
+        function updateButtonStates() {
+            if ($('#status').text() === '停止中') {
+                $('#start-button').prop('disabled', false).removeClass('disabled-button');
+                $('#pause-button, #end-button').prop('disabled', true).addClass('disabled-button');
+            } else {
+                $('#start-button').prop('disabled', true).addClass('disabled-button');
+                $('#pause-button, #end-button').prop('disabled', false).removeClass('disabled-button');
+            }
+        }
+
+        $('#start-button').on('click', function() {
+            $.post('/start', function(response) {
+                if (response.status === 'started') {
+                    isRunning = true;
+                    updateStatus();
+                    interact();
+                }
+            });
+        });
+
+        $('#pause-button').on('click', function() {
+            $.post('/pause', function(response) {
+                if (response.status === 'paused') {
+                    isRunning = false;
+                    updateStatus();
+                }
+            });
+        });
+
+        $('#end-button').on('click', function() {
+            $.post('/end', function(response) {
+                if (response.status === 'ended') {
+                    isRunning = false;
+                    $('#conversation').append('<p>Interaction ended.</p>');
+                    updateStatus();
+                }
+            });
+        });
+
+        function interact() {
+            if (isRunning) {
+                $.post('/interact', function(response) {
+                    if (response.status !== 'not running') {
+                        $('#conversation').append(`<p>User: ${response.user}</p>`);
+                        $('#conversation').append(`<p>Assistant: ${response.assistant}</p>`);
+                        $('.scrollable-container').scrollTop($('.scrollable-container')[0].scrollHeight);
+                        updateStatus();
+                        interact();
+                    }
+                });
+            }
+        }
+
+        function updateStatus() {
+            $.get('/status', function(response) {
+                $('#status').text(response.status);
+                updateButtonStates();
+            });
+        }
+
+        $(document).ready(function() {
+            updateStatus();
+        });
+    </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-Flask
+flask[async]
 openai
 python-dotenv
 pydub
@@ -6,3 +6,4 @@ sounddevice
 scipy
 streamlit
 soundfile
+quart
