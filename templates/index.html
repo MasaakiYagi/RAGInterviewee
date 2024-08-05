@@ -10,9 +10,6 @@
 <body>
     <div class="container">
         <h1>面談シミュレータ Powered by ChatGPT</h1>
-        <div id="status-container">
-            <p>Status: <span id="status">{{ status }}</span></p>
-        </div>
         
         <!-- 画像を表示するためのdivを追加 -->
         <div class="image-container">
@@ -20,37 +17,36 @@
         </div>
 
         <div class="scrollable-container" id="conversation"></div>
-        <div class="button-container">
-            <button id="start-button" class="control-button">Start Interaction</button>
-            <button id="pause-button" class="control-button">Pause Interaction</button>
-            <button id="end-button" class="control-button">End Interaction</button>
+        <div id="status-container">
+            <p>Status: <span id="status">{{ status }}</span></p>
         </div>
+        <div class="button-container">
+            <button id="start-button" class="control-button">話す</button>
+            <button id="end-button" class="control-button">中断</button>
+        </div>
+
+        <!-- Audio element for playing responses -->
+        <audio id="response-audio" controls style="display:none;"></audio>
     </div>
 
     <script>
         let isRunning = false;
-
-        function updateButtonStates() {
-            if ($('#status').text() === '停止中') {
-                $('#start-button').prop('disabled', false).removeClass('disabled-button');
-                $('#pause-button, #end-button').prop('disabled', true).addClass('disabled-button');
-            } else {
-                $('#start-button').prop('disabled', true).addClass('disabled-button');
-                $('#pause-button, #end-button').prop('disabled', false).removeClass('disabled-button');
-            }
-        }
+        let mediaRecorder;
+        let audioChunks = [];
+        let silenceThreshold = 0.02;  // 無音と判断する閾値
+        let silenceDuration = 2000;  // 無音の持続時間 (ミリ秒)
+        let silenceStartTime = null;
 
         $('#start-button').on('click', function() {
-            $.post('/start', function(response) {
-                if (response.status === 'started') {
-                    isRunning = true;
-                    updateStatus();
-                    interact();
-                }
-            });
+            $('#status').text('ユーザー音声聞き取り中');
+            updateButtonStates();
+            startRecording();
         });
 
         $('#pause-button').on('click', function() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+            }
             $.post('/pause', function(response) {
                 if (response.status === 'paused') {
                     isRunning = false;
@@ -60,27 +56,89 @@
         });
 
         $('#end-button').on('click', function() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+            }
             $.post('/end', function(response) {
                 if (response.status === 'ended') {
                     isRunning = false;
-                    $('#conversation').append('<p>Interaction ended.</p>');
+                    $('#conversation').prepend('<p>Interaction ended.</p>');
                     updateStatus();
                 }
             });
         });
 
-        function interact() {
-            if (isRunning) {
-                $.post('/interact', function(response) {
-                    if (response.status !== 'not running') {
-                        $('#conversation').append(`<p>User: ${response.user}</p>`);
-                        $('#conversation').append(`<p>Assistant: ${response.assistant}</p>`);
-                        $('.scrollable-container').scrollTop($('.scrollable-container')[0].scrollHeight);
-                        updateStatus();
-                        interact();
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+
+                    const audioContext = new AudioContext();
+                    const audioInput = audioContext.createMediaStreamSource(stream);
+                    const analyser = audioContext.createAnalyser();
+                    audioInput.connect(analyser);
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+
+                    function checkSilence() {
+                        analyser.getByteFrequencyData(dataArray);
+                        let maxVolume = Math.max(...dataArray) / 128.0 - 1.0;
+
+                        if (maxVolume < silenceThreshold) {
+                            if (silenceStartTime === null) {
+                                silenceStartTime = Date.now();
+                            } else if (Date.now() - silenceStartTime > silenceDuration) {
+                                mediaRecorder.stop();
+                                return;
+                            }
+                        } else {
+                            silenceStartTime = null;
+                        }
+
+                        requestAnimationFrame(checkSilence);
                     }
+
+                    checkSilence();
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        $('#status').text('AI応答中');  // 音声録音の停止時にステータスを更新
+                        updateButtonStates();
+
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob, 'recording.wav');
+
+                        $.ajax({
+                            url: '/start',
+                            type: 'POST',
+                            data: formData,
+                            processData: false,
+                            contentType: false,
+                            success: function(response) {
+                                handleInteractionResponse(response);
+                            }
+                        });
+                    };
                 });
-            }
+        }
+
+        function handleInteractionResponse(response) {
+            $('#conversation').prepend(`<p>User: ${response.user}</p>`);
+            $('#conversation').prepend(`<p>Assistant: ${response.assistant}</p>`);
+            $('#status').text('停止中');
+            updateButtonStates();
+
+            // Play the audio response
+            const audioElement = document.getElementById('response-audio');
+            audioElement.src = `/audio/${response.audio_file}`;
+            audioElement.style.display = 'block';
+            audioElement.play();
         }
 
         function updateStatus() {
@@ -88,6 +146,16 @@
                 $('#status').text(response.status);
                 updateButtonStates();
             });
+        }
+
+        function updateButtonStates() {
+            if ($('#status').text() === '停止中') {
+                $('#start-button').prop('disabled', false).removeClass('disabled-button');
+                $('#pause-button, #end-button').prop('disabled', true).addClass('disabled-button');
+            } else {
+                $('#start-button').prop('disabled', true).addClass('disabled-button');
+                $('#pause-button, #end-button').prop('disabled', false).removeClass('disabled-button');
+            }
         }
 
         $(document).ready(function() {
