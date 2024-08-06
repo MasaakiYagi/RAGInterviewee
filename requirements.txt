@@ -1,3 +1,4 @@
+gunicorn
 flask[async]
 openai
 python-dotenv

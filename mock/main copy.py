@@ -27,18 +27,20 @@ class AIAssistant:
     # 声質
     voice_code = "nova"  # 男性 alloy, echo, fable, onyx 女性 nova, shimmer
 
-    def __init__(self, assistant_id: str, api_key: str):
+    def __init__(self, assistant_id: str, api_key: str, output_audio_file: str = "./output.wav"):
         """
         初期化処理。
 
         Args:
             assistant_id (str): AIアシスタントのID。
+            output_audio_file (str, optional): 音声ファイルの保存先。
         """
         self.assistant_id = assistant_id
         self.client = OpenAI()
         self.client.api_key = api_key
         thread = self.client.beta.threads.create()
         self.thread_id = thread.id
+        self.output_audio_file = output_audio_file
 
     def record_audio(self) -> any:
         """
@@ -65,13 +67,11 @@ class AIAssistant:
         Returns:
             str: 変換されたテキスト。
         """
-        audio_file = io.BytesIO()
-        sf.write(audio_file, audio_data, self.fs, format='wav')
-        audio_file.seek(0)
-        
-        transcript = self.client.audio.transcriptions.create(
-            model=self.stt_model, file=audio_file
-        )
+        sf.write(self.output_audio_file, audio_data, self.fs)
+        with open(self.output_audio_file, "rb") as audio_file:
+            transcript = self.client.audio.transcriptions.create(
+                model=self.stt_model, file=audio_file
+            )
         return transcript.text
 
     def run_thread_actions(self, text: str) -> str:
@@ -135,23 +135,16 @@ def main():
     ai_assistant = AIAssistant(assistant_id=assistant_id, api_key=api_key)
 
     st.title("AI Assistant with Speech-to-Text and Text-to-Speech")
-    
-    # キャラクター画像を表示
-    st.image("character.png")
-
-    # コンテナを追加
-    container = st.container()
 
     if st.button("Record Audio"):
-        while True:
-            recorded_data = ai_assistant.record_audio()
-            transcript_text = ai_assistant.transcribe_audio(recorded_data)
-            container.write(f"user: {transcript_text}")
+        recorded_data = ai_assistant.record_audio()
+        transcript_text = ai_assistant.transcribe_audio(recorded_data)
+        st.write(f"user: {transcript_text}")
 
-            if transcript_text:
-                assistant_content = ai_assistant.run_thread_actions(transcript_text)
-                container.write(f"assistant: {assistant_content}")
-                ai_assistant.text_to_speech(assistant_content)
+        if transcript_text:
+            assistant_content = ai_assistant.run_thread_actions(transcript_text)
+            st.write(f"assistant: {assistant_content}")
+            ai_assistant.text_to_speech(assistant_content)
 
 if __name__ == "__main__":
     main()
