@@ -37,10 +37,18 @@ class AIAssistant(metaclass=SingletonMeta):
         self.thread_id = self.client.beta.threads.create().id
 
     # ユーザー入力の文字起こし
-    def transcribe_audio(self, file_path):
+    def transcribe_audio(self, audio_stream):
         # ファイルを読み込んでAPIに送信
-        with open(file_path, 'rb') as audio_file:
-            transcript = self.client.audio.transcriptions.create(model=self.stt_model, file=audio_file)
+        # with open(file_path, 'rb') as audio_file:
+        #     transcript = self.client.audio.transcriptions.create(model=self.stt_model, file=audio_file)
+        # バイトストリームをwav形式に変換
+        data, samplerate = sf.read(audio_stream)
+        wav_io = io.BytesIO()
+        wav_io.name = "input.wav"
+        sf.write(wav_io, data, samplerate, format='WAV')
+        wav_io.seek(0)  # バッファの先頭に戻す
+
+        transcript = self.client.audio.transcriptions.create(model=self.stt_model, file=wav_io)
         return transcript.text
     
     # LLMの応答生成
@@ -61,18 +69,18 @@ class AIAssistant(metaclass=SingletonMeta):
     def text_to_speech(self, text):
         response = self.client.audio.speech.create(model=self.tts_model, voice=self.voice_code, input=text)
         byte_stream = io.BytesIO(response.content)
-        audio_data, samplerate = sf.read(byte_stream)
-        audio_file_path = "output.wav"
-        sf.write(audio_file_path, audio_data, samplerate)
-        return audio_file_path
+        # audio_data, samplerate = sf.read(byte_stream)
+        # audio_file_path = "output.wav"
+        # sf.write(audio_file_path, audio_data, samplerate)
+        return byte_stream
 
     # 全てを順番に実行するラップ関数
-    def reply_process(self, file_path):
-        transcribed_text = self.transcribe_audio(file_path)
+    def reply_process(self, audio_stream):
+        transcribed_text = self.transcribe_audio(audio_stream)
         reply_message = self.run_thread_actions(transcribed_text)
-        audio_path = self.text_to_speech(reply_message)
+        audio_byte_stream = self.text_to_speech(reply_message)
 
-        return transcribed_text, reply_message, audio_path
+        return transcribed_text, reply_message, audio_byte_stream
 
 
 def check_auth(username, password):
@@ -120,17 +128,22 @@ def start():
     if audio_file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
-    audio_path = os.path.join('uploads', 'recording.wav')
-    
-    audio_file.save(audio_path)
+    # audio_path = os.path.join('uploads', 'recording.wav')
+    # audio_file.save(audio_path)
+    # バイトストリームとして読み込む
+    audio_stream = io.BytesIO(audio_file.read())
 
     # 応答生成
-    user_text, assistant_text, response_audio_path = assistant.reply_process(audio_path)
+    # user_text, assistant_text, response_audio_path = assistant.reply_process(audio_path)
+    user_text, assistant_text, response_audio_stream = assistant.reply_process(audio_stream)
 
-    with open(response_audio_path, 'rb') as f:
-        audio_data = f.read()
-
+    # バイトストリームをBase64に変換
+    audio_data = response_audio_stream.getvalue()
     audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+    # with open(response_audio_path, 'rb') as f:
+    #     audio_data = f.read()
+
+    # audio_base64 = base64.b64encode(audio_data).decode('utf-8')
 
     return jsonify({
         'user': user_text,
