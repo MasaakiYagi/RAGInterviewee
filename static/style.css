@@ -17,6 +17,10 @@ html, body {
     max-width: 800px;
 }
 
+.log-container {
+    width: 100%;
+}
+
 #status-container {
     background-color: #f0f0f0;
     padding: 3px;
@@ -37,7 +41,7 @@ html, body {
 }
 
 .character-image {
-    width: 400px; /* ここで画像の幅を指定 */
+    width: 600px; /* ここで画像の幅を指定 */
     height: auto; /* 高さは自動調整 */
 }
 
@@ -66,3 +70,11 @@ button {
     background-color: #ccc;
     cursor: not-allowed;
 }
+
+h1 {
+    margin: 5px;
+}
+h3 {
+    margin: 5px;
+}
+

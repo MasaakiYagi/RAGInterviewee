@@ -9,19 +9,22 @@
 </head>
 <body>
     <div class="container">
-        <h1>面談シミュレータ Powered by ChatGPT</h1>
-
+        <h1>面談シミュレータ</h1>
+        <h3>Powered by OpenAI</h3>
         <div class="image-container">
             <img src="{{ url_for('static', filename='images/character.png') }}" alt="Character Image" class="character-image">
         </div>
 
+        <div class="log-container">
+            <p>会話ログ</p>
+        </div>
         <div class="scrollable-container" id="conversation"></div>
         <div id="status-container">
             <p>Status: <span id="status">{{ status }}</span></p>
         </div>
         <div class="button-container">
-            <button id="start-button" class="control-button">話す</button>
-            <button id="stop-button" class="control-button" disabled>終わる</button>
+            <button id="start-button" class="control-button">発言開始</button>
+            <button id="stop-button" class="control-button" disabled>発言終了</button>
         </div>
 
         <audio id="response-audio" controls style="display:none;"></audio>
