@@ -163,7 +163,74 @@
             return bufferArray;
         }
 
+        /*録音した音声をバックエンドに送信*/
         function sendRecording(blob) {
+            const formData = new FormData();
+            formData.append('audio', blob, 'recording.wav');
+
+            $.ajax({
+                url: '/transcribe',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    handleSendRecording(response);
+                }
+            });
+        }
+
+        function handleSendRecording(response) {
+            $('#conversation').prepend(`<p>あなた: ${response.usertext}</p>`);
+            sendUserText(response.usertext);
+        }
+
+        /*書き起こされたUserTextをバックエンドに送信*/
+        function sendUserText(usertext) {
+            $.ajax({
+                url: '/llm',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ message: usertext }),
+                success: function(response) {
+                    handleUserSendText(response);
+                }
+            });
+        }
+
+        function handleUserSendText(response) {
+            $('#conversation').prepend(`<p>インタビュイー: ${response.assistanttext}</p>`);
+            sendAssistantText(response.assistanttext);
+        }
+
+        /*返されたAssistantTextをバックエンドに送信*/
+        function sendAssistantText(assistanttext) {
+            $.ajax({
+                url: '/tts',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ message: assistanttext }),
+                success: function(response) {
+                    handleAssitantSendText(response);
+                }
+            });
+        }
+
+        function handleAssitantSendText(response) {
+            const audioBase64 = response.audio;
+            const audioBlob = base64ToBlob(audioBase64, 'audio/wav');
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audioElement = document.getElementById('response-audio');
+            audioElement.src = audioUrl;
+            audioElement.style.display = 'block';
+            audioElement.play();
+
+            $('#status').text('停止中');
+            updateButtonStates();
+        }
+
+        /*一気通貫のバックエンドの場合の処理*/
+        function sendRecording_old(blob) {
             const formData = new FormData();
             formData.append('audio', blob, 'recording.wav');
 

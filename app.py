@@ -151,6 +151,65 @@ def start():
         'audio': audio_base64
     })
 
+@app.route('/transcribe', methods=['POST'])
+def transcribe():
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file in request'}), 400
+
+    audio_file = request.files['audio']
+    if audio_file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    # バイトストリームとして読み込む
+    audio_stream = io.BytesIO(audio_file.read())
+
+    # もじおこし
+    user_text = assistant.transcribe_audio(audio_stream)
+
+    return jsonify({
+        'usertext': user_text,
+    })
+
+@app.route('/llm', methods=['POST'])
+def llm():
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON'}), 400
+
+    data = request.get_json()
+
+    if 'message' not in data:
+        return jsonify({'error': 'No message in request'}), 400
+
+    user_text = data['message']
+    assistant_text = assistant.run_thread_actions(user_text)
+
+    return jsonify({
+        'assistanttext': assistant_text,
+    })
+
+@app.route('/tts', methods=['POST'])
+def tts():
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON'}), 400
+
+    data = request.get_json()
+
+    if 'message' not in data:
+        return jsonify({'error': 'No message in request'}), 400
+
+    assistant_text = data['message']
+    response_audio_stream = assistant.text_to_speech(assistant_text)
+
+    # バイトストリームをBase64に変換
+    audio_data = response_audio_stream.getvalue()
+    audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+
+    # audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+
+    return jsonify({
+        'audio': audio_base64
+    })
+
 if __name__ == '__main__':
     if not os.path.exists('uploads'):
         os.makedirs('uploads')
