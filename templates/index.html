@@ -181,7 +181,8 @@
         }
 
         function handleSendRecording(response) {
-            $('#conversation').prepend(`<p>あなた: ${response.usertext}</p>`);
+            $('#conversation').prepend(`<hr>`);
+            $('#conversation').prepend(`<p><strong>あなた:</strong></p><p>${response.usertext}</p>`);
             sendUserTextStreaming(response.usertext);
         }
 
@@ -237,7 +238,7 @@
             let audioQueue = [];
             let isPlaying = false;
 
-            conversationElement.prepend(`<p id="${responseTextId}">インタビュイー: </p>`);
+            conversationElement.prepend(`<p><strong>インタビュイー:</strong></p><p id="${responseTextId}"></p>`);
 
             $.ajax({
                 url: '/llm_stream',
