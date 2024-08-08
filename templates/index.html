@@ -182,7 +182,7 @@
 
         function handleSendRecording(response) {
             $('#conversation').prepend(`<p>あなた: ${response.usertext}</p>`);
-            sendUserText(response.usertext);
+            sendUserTextStreaming(response.usertext);
         }
 
         /*書き起こされたUserTextをバックエンドに送信*/
@@ -229,7 +229,78 @@
             updateButtonStates();
         }
 
+        /*応答生成と音声生成を同時にストリーミング*/
+        function sendUserTextStreaming(usertext) {
+            const conversationElement = $('#conversation');
+            const audioElement = document.getElementById('response-audio');
+            const responseTextId = `response-text-${Date.now()}`;
+            let audioQueue = [];
+            let isPlaying = false;
+
+            conversationElement.prepend(`<p id="${responseTextId}">インタビュイー: </p>`);
+
+            $.ajax({
+                url: '/llm_stream',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ message: usertext }),
+                success: function(response) {
+                    const eventSource = new EventSource('/llm_stream');
+
+                    eventSource.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+
+                        if (data.text) {
+                            // 文字データを受け取り表示する
+                            const responseTextElement = document.getElementById(responseTextId);
+                            responseTextElement.innerText += data.text;
+                        }
+
+                        if (data.audio) {
+                            // 音声データを受け取りキューに追加する
+                            const audioBlob = base64ToBlob(data.audio, 'audio/wav');
+                            audioQueue.push(audioBlob);
+                            playNextAudio();
+                        }
+
+                        if (data.completed) {
+                            eventSource.close();
+                            $('#status').text('停止中');
+                            updateButtonStates();
+                        }
+                    };
+
+                    eventSource.onerror = function() {
+                        eventSource.close();
+                        $('#status').text('停止中, Streaming生成失敗');
+                    };
+                },
+                error: function() {
+                    $('#status').text('停止中, Streaming開始失敗');
+                }
+            });
+
+            function playNextAudio() {
+                if (isPlaying || audioQueue.length === 0) {
+                    return;
+                }
+
+                const audioBlob = audioQueue.shift();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioElement.src = audioUrl;
+                isPlaying = true;
+
+                audioElement.onended = function() {
+                    isPlaying = false;
+                    playNextAudio();
+                };
+
+                audioElement.play();
+            }
+        }
+
         /*一気通貫のバックエンドの場合の処理*/
+        /*
         function sendRecording_old(blob) {
             const formData = new FormData();
             formData.append('audio', blob, 'recording.wav');
@@ -260,7 +331,7 @@
             $('#status').text('停止中');
             updateButtonStates();
         }
-
+        */
         function base64ToBlob(base64, type) {
             const binary = atob(base64.replace(/\s/g, ''));
             const len = binary.length;

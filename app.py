@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, session, make_response
+from flask import Flask, render_template, request, jsonify, Response, session, stream_with_context
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -7,6 +7,7 @@ import time
 import io
 import soundfile as sf
 import base64
+import re
 
 app = Flask(__name__)
 app.secret_key = 'secret_key'
@@ -68,11 +69,11 @@ class AIAssistant(metaclass=SingletonMeta):
     # 応答音声の生成
     def text_to_speech(self, text):
         response = self.client.audio.speech.create(model=self.tts_model, voice=self.voice_code, input=text)
-        byte_stream = io.BytesIO(response.content)
-        # audio_data, samplerate = sf.read(byte_stream)
-        # audio_file_path = "output.wav"
-        # sf.write(audio_file_path, audio_data, samplerate)
-        return byte_stream
+        return io.BytesIO(response.content)
+
+    def split_text_for_tts(self, text):
+        sentences = re.split(r'(?<=。)', text)
+        return sentences
 
     # 全てを順番に実行するラップ関数
     def reply_process(self, audio_stream):
@@ -209,6 +210,53 @@ def tts():
     return jsonify({
         'audio': audio_base64
     })
+
+@app.route('/llm_stream', methods=['GET', 'POST'])
+def llm_stream():
+    if request.method == 'POST':
+        data = request.get_json()
+        if 'message' not in data:
+            return jsonify({'error': 'No message in request'}), 400
+        session['user_text'] = data['message']
+        session['text_buffer'] = ''
+        return jsonify({'status': 'Streaming session started'})
+
+    elif request.method == 'GET':
+        user_text = session.get('user_text')
+        if not user_text:
+            return jsonify({'error': 'No message in session'}), 400
+
+        @stream_with_context
+        def generate():
+            with assistant.client.beta.threads.create_and_run_stream(
+                assistant_id=assistant.assistant_id,
+                thread={"messages": [{"role": "user", "content": user_text}]}
+            ) as stream:
+                text_buffer = ''
+                for event in stream:
+                    if event.event == "thread.message.delta" and event.data.delta.content:
+                        text_chunk = event.data.delta.content[0].text.value
+                        text_buffer += text_chunk
+                        session['text_buffer'] += text_chunk
+                        yield f'data: {{"text": "{text_chunk}"}}\n\n'
+
+                        if '。' in text_buffer:
+                            sentences = assistant.split_text_for_tts(text_buffer)
+                            for sentence in sentences[:-1]:
+                                tts_response = assistant.text_to_speech(sentence)
+                                audio_base64 = base64.b64encode(tts_response.getvalue()).decode('utf-8')
+                                yield f'data: {{"audio": "{audio_base64}"}}\n\n'
+                            text_buffer = sentences[-1]
+
+                    elif event.event == "thread.run.completed":
+                        if text_buffer:
+                            tts_response = assistant.text_to_speech(text_buffer)
+                            audio_base64 = base64.b64encode(tts_response.getvalue()).decode('utf-8')
+                            yield f'data: {{"audio": "{audio_base64}"}}\n\n'
+                        yield f'data: {{"completed": true}}\n\n'
+                        break
+
+        return Response(generate(), content_type='text/event-stream')
 
 if __name__ == '__main__':
     if not os.path.exists('uploads'):
